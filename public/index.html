@@ -1,31 +1,68 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8" />
-  <title>怪物掉落查詢</title>
+  <meta charset="UTF-8">
+  <title>怪物掉落查詢系統</title>
   <style>
-    body { font-family: Arial; padding: 30px; }
-    input { padding: 6px; }
-    button { padding: 6px 12px; }
-    pre { background: #f4f4f4; padding: 10px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      background: #f7f7f7;
+    }
+    h1 {
+      color: #333;
+    }
+    input, button {
+      padding: 8px;
+      font-size: 16px;
+    }
+    button {
+      margin-left: 6px;
+      cursor: pointer;
+    }
+    ul {
+      background: #fff;
+      padding: 15px;
+      border-radius: 5px;
+    }
   </style>
 </head>
 <body>
 
-<h2>🧟 怪物掉落查詢</h2>
+<h1>🧟 怪物掉落查詢</h1>
 
-<input id="monster" placeholder="輸入怪物名稱" />
+<p>輸入怪物名稱（例：巴風特、史萊姆）</p>
+
+<input id="monster" placeholder="怪物名稱">
 <button onclick="search()">查詢</button>
 
-<pre id="result"></pre>
+<h3>掉落物：</h3>
+<ul id="result"></ul>
 
 <script>
 async function search() {
-  const name = document.getElementById('monster').value;
-  const res = await fetch(`/api/drop?monster=${encodeURIComponent(name)}`);
+  const monster = document.getElementById('monster').value;
+  const resultEl = document.getElementById('result');
+  resultEl.innerHTML = '';
+
+  if (!monster) {
+    alert('請輸入怪物名稱');
+    return;
+  }
+
+  const res = await fetch(`/api/drop?monster=${encodeURIComponent(monster)}`);
   const data = await res.json();
-  document.getElementById('result').textContent =
-    JSON.stringify(data, null, 2);
+
+  if (!data.success || data.drops.length === 0) {
+    resultEl.innerHTML = '<li>查無資料</li>';
+    return;
+  }
+
+  data.drops.forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item;
+    resultEl.appendChild(li);
+  });
 }
 </script>
 
