@@ -1,22 +1,45 @@
-const express = require("express");
-const cors = require("cors");
+const express = require('express');
+const path = require('path');
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-
 const PORT = process.env.PORT || 3000;
 
-// 首頁
-app.get("/", (req, res) => {
-  res.send("✅ cartest 已成功在 Render 上線！");
+// 讓 Render 可以讀取 public/index.html
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ===== 假資料（之後可換成 DB）=====
+const monsterDrops = {
+  巴風特: ['巴風特之角', '祝福武器卷軸', '魔法書'],
+  史萊姆: ['果凍', '空瓶'],
+  不死鳥: ['不死鳥之羽', '火焰寶石'],
+};
+
+// ===== 查詢 API =====
+app.get('/api/drop', (req, res) => {
+  const monster = req.query.monster;
+
+  if (!monster) {
+    return res.json({
+      success: false,
+      message: '請提供怪物名稱',
+    });
+  }
+
+  const drops = monsterDrops[monster] || [];
+
+  res.json({
+    success: true,
+    monster,
+    drops,
+  });
 });
 
-// 測試 API
-app.get("/api/test", (req, res) => {
-  res.json({ ok: true, message: "API 正常運作" });
+// ===== 首頁測試 =====
+app.get('/api/test', (req, res) => {
+  res.json({ status: 'API OK' });
 });
 
+// ===== 啟動伺服器 =====
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log(`Server running on port ${PORT}`);
 });
