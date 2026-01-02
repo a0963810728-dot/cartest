@@ -1,0 +1,8 @@
+# Google Cloud Service Account key
+cartest-482711-1fedea9dd3d6.json
+
+# Node modules
+node_modules/
+
+# Environment variables
+.env
