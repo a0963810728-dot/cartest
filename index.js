@@ -1,45 +1,62 @@
-const express = require('express');
-const path = require('path');
+import express from 'express'
+import { GoogleSpreadsheet } from 'google-spreadsheet'
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const app = express()
+const PORT = process.env.PORT || 3000
 
-// 讓 Render 可以讀取 public/index.html
-app.use(express.static(path.join(__dirname, 'public')));
+// Google Sheet 設定
+const SHEET_ID = process.env.GOOGLE_SHEET_ID
+const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL
+const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
 
-// ===== 假資料（之後可換成 DB）=====
-const monsterDrops = {
-  巴風特: ['巴風特之角', '祝福武器卷軸', '魔法書'],
-  史萊姆: ['果凍', '空瓶'],
-  不死鳥: ['不死鳥之羽', '火焰寶石'],
-};
+// 連線 Sheet
+async function loadSheet() {
+  const doc = new GoogleSpreadsheet(SHEET_ID)
+  await doc.useServiceAccountAuth({
+    client_email: CLIENT_EMAIL,
+    private_key: PRIVATE_KEY,
+  })
+  await doc.loadInfo()
+  return doc.sheetsByIndex[0]
+}
 
-// ===== 查詢 API =====
-app.get('/api/drop', (req, res) => {
-  const monster = req.query.monster;
+// 首頁
+app.get('/', (req, res) => {
+  res.send('✅ cartest 怪物掉落查詢 API 已啟動')
+})
+
+// 查詢 API
+app.get('/api/drop', async (req, res) => {
+  const monster = req.query.monster?.trim()
 
   if (!monster) {
-    return res.json({
-      success: false,
-      message: '請提供怪物名稱',
-    });
+    return res.json({ success: false, message: '請提供 monster 參數' })
   }
 
-  const drops = monsterDrops[monster] || [];
+  try {
+    const sheet = await loadSheet()
+    const rows = await sheet.getRows()
 
-  res.json({
-    success: true,
-    monster,
-    drops,
-  });
-});
+    const drops = rows
+      .filter(r => r['怪物'] && r['怪物'].startsWith(monster + '=>'))
+      .map(r => ({
+        item: r['怪物'].split('=>')[1],
+        map: r['地圖'] || '',
+        rate: r['掉落機率'] || '',
+        note: r['備註'] || '',
+      }))
 
-// ===== 首頁測試 =====
-app.get('/api/test', (req, res) => {
-  res.json({ status: 'API OK' });
-});
+    res.json({
+      success: true,
+      monster,
+      drops,
+    })
+  } catch (err) {
+    console.error(err)
+    res.json({ success: false, error: err.message })
+  }
+})
 
-// ===== 啟動伺服器 =====
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  console.log(`🚀 Server running on port ${PORT}`)
+})
