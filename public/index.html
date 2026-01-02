@@ -2,69 +2,85 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>怪物掉落查詢系統</title>
+  <title>怪物掉落查詢</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 40px;
-      background: #f7f7f7;
+      padding: 30px;
     }
-    h1 {
-      color: #333;
-    }
-    input, button {
-      padding: 8px;
+    input {
       font-size: 16px;
+      padding: 6px;
+      width: 260px;
     }
     button {
-      margin-left: 6px;
-      cursor: pointer;
+      font-size: 16px;
+      padding: 6px 12px;
     }
-    ul {
-      background: #fff;
-      padding: 15px;
-      border-radius: 5px;
+    table {
+      margin-top: 20px;
+      border-collapse: collapse;
+      width: 100%;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      text-align: left;
     }
   </style>
 </head>
 <body>
 
-<h1>🧟 怪物掉落查詢</h1>
+  <h1>‍♂️ 怪物 / 掉落 查詢</h1>
 
-<p>輸入怪物名稱（例：巴風特、史萊姆）</p>
+  <input id="q" placeholder="輸入怪物或掉落物">
+  <button onclick="search()">查詢</button>
 
-<input id="monster" placeholder="怪物名稱">
-<button onclick="search()">查詢</button>
+  <div id="result"></div>
 
-<h3>掉落物：</h3>
-<ul id="result"></ul>
+  <script>
+    async function search() {
+      const q = document.getElementById('q').value.trim()
+      if (!q) {
+        alert('請輸入關鍵字')
+        return
+      }
 
-<script>
-async function search() {
-  const monster = document.getElementById('monster').value;
-  const resultEl = document.getElementById('result');
-  resultEl.innerHTML = '';
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
+      const data = await res.json()
 
-  if (!monster) {
-    alert('請輸入怪物名稱');
-    return;
-  }
+      if (!data.success || data.results.length === 0) {
+        document.getElementById('result').innerHTML = '<p>❌ 查無資料</p>'
+        return
+      }
 
-  const res = await fetch(`/api/drop?monster=${encodeURIComponent(monster)}`);
-  const data = await res.json();
+      let html = `
+        <table>
+          <tr>
+            <th>怪物</th>
+            <th>掉落物</th>
+            <th>地圖</th>
+            <th>機率</th>
+            <th>備註</th>
+          </tr>
+      `
 
-  if (!data.success || data.drops.length === 0) {
-    resultEl.innerHTML = '<li>查無資料</li>';
-    return;
-  }
+      data.results.forEach(r => {
+        html += `
+          <tr>
+            <td>${r.monster}</td>
+            <td>${r.item}</td>
+            <td>${r.map}</td>
+            <td>${r.rate}</td>
+            <td>${r.note}</td>
+          </tr>
+        `
+      })
 
-  data.drops.forEach(item => {
-    const li = document.createElement('li');
-    li.textContent = item;
-    resultEl.appendChild(li);
-  });
-}
-</script>
+      html += '</table>'
+      document.getElementById('result').innerHTML = html
+    }
+  </script>
 
 </body>
 </html>
