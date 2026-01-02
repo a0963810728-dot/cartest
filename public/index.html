@@ -1,67 +1,33 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>怪物掉落查詢</title>
   <style>
-    body {
-      font-family: Arial;
-      background: #111;
-      color: #eee;
-      padding: 30px;
-    }
-    input, button {
-      padding: 8px;
-      font-size: 16px;
-    }
-    button {
-      cursor: pointer;
-    }
-    .result {
-      margin-top: 20px;
-      padding: 15px;
-      background: #222;
-      border-radius: 6px;
-    }
+    body { font-family: Arial; padding: 30px; }
+    input { padding: 6px; }
+    button { padding: 6px 12px; }
+    pre { background: #f4f4f4; padding: 10px; }
   </style>
 </head>
 <body>
 
-  <h1>🧟‍♂️ 怪物掉落查詢</h1>
+<h2>🧟 怪物掉落查詢</h2>
 
-  <input id="monster" placeholder="輸入怪物名稱">
-  <button onclick="search()">查詢</button>
+<input id="monster" placeholder="輸入怪物名稱" />
+<button onclick="search()">查詢</button>
 
-  <div id="result" class="result"></div>
+<pre id="result"></pre>
 
-  <script>
-    async function search() {
-      const name = document.getElementById('monster').value;
-      const result = document.getElementById('result');
-
-      result.innerHTML = '查詢中...';
-
-      try {
-        const res = await fetch(`/api/monster?name=${encodeURIComponent(name)}`);
-        const data = await res.json();
-
-        if (!data || data.length === 0) {
-          result.innerHTML = '❌ 查無資料';
-          return;
-        }
-
-        let html = `<h3>掉落物：</h3><ul>`;
-        data.forEach(item => {
-          html += `<li>${item}</li>`;
-        });
-        html += `</ul>`;
-
-        result.innerHTML = html;
-      } catch (e) {
-        result.innerHTML = '⚠️ 查詢失敗';
-      }
-    }
-  </script>
+<script>
+async function search() {
+  const name = document.getElementById('monster').value;
+  const res = await fetch(`/api/drop?monster=${encodeURIComponent(name)}`);
+  const data = await res.json();
+  document.getElementById('result').textContent =
+    JSON.stringify(data, null, 2);
+}
+</script>
 
 </body>
 </html>
