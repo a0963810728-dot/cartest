@@ -1,147 +1,75 @@
 const express = require("express");
 const cors = require("cors");
 const { google } = require("googleapis");
-const path = require("path");
-const fs = require("fs");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
 
-/* ===============================
-   Google Credentials（雲端專用）
-   =============================== */
+// ====== Google Sheet 設定 ======
+const SHEET_ID = process.env.GOOGLE_SHEET_ID;
+const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
+const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n");
 
-// Render / 雲端：用環境變數寫成檔案
-const credPath = path.join(__dirname, "google-credentials.json");
-
-if (process.env.GOOGLE_CREDENTIALS_JSON && !fs.existsSync(credPath)) {
-  fs.writeFileSync(
-    credPath,
-    process.env.GOOGLE_CREDENTIALS_JSON,
-    "utf8"
-  );
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = credPath;
-}
-
-/* ===============================
-   Google Sheet Auth
-   =============================== */
-
-const auth = new google.auth.GoogleAuth({
-  // 本機：用 json 檔
-  // 雲端：用上面寫出的 google-credentials.json
-  keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS
-    || path.join(__dirname, "cartest-482711-1fedea9dd3d6.json"),
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"]
-});
+const auth = new google.auth.JWT(
+  CLIENT_EMAIL,
+  null,
+  PRIVATE_KEY,
+  ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+);
 
 const sheets = google.sheets({ version: "v4", auth });
 
-const spreadsheetId = "1AE_no7yRQ2rURrEBIrCUEVaoHnMfYpAZT1MCsZVU_WE";
-
-/*
-Sheet 結構：
-A：怪物=>寶物
-B：寶物（未使用）
-C：地圖
-D：掉落機率（基準 10000）
-E：備註
-*/
-
-function norm(v) {
-  return (v ?? "").toString().trim().toLowerCase();
-}
-
-// ✅ 機率只做數值換算（不加 %）
-function formatRate(v) {
-  const raw = String(v ?? "").trim();
-  if (!raw) return "";
-
-  const n = Number(raw);
-  if (Number.isFinite(n)) {
-    return n / 10000;
-  }
-  return "";
-}
-
-// 拆 A 欄：怪物=>寶物
-function splitMonsterItem(cell) {
-  const s = String(cell ?? "").trim();
-  if (!s) return { monster: "", item: "" };
-
-  const parts =
-    s.includes("=>") ? s.split("=>") :
-    s.includes("⇒") ? s.split("⇒") :
-    [s];
-
-  if (parts.length >= 2) {
-    return {
-      monster: parts[0].trim(),
-      item: parts.slice(1).join("=>").trim()
-    };
-  }
-
-  return { monster: "", item: s };
-}
-
-/* ===============================
-   Routes
-   =============================== */
-
+// ====== 首頁（測試用） ======
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.send("✅ cartest 怪物掉落查詢 API 已啟動");
 });
 
-app.get("/search", async (req, res) => {
-  try {
-    const keyword = norm(req.query.keyword);
-    if (!keyword) return res.json([]);
+// ====== 查詢怪物掉落 ======
+app.get("/api/drop", async (req, res) => {
+  const monster = req.query.monster;
 
+  if (!monster) {
+    return res.json({ error: "請提供 monster 參數" });
+  }
+
+  try {
     const result = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: "drops!A2:E"
+      spreadsheetId: SHEET_ID,
+      range: "A:E", // A=怪物 B=寶物 C=地圖 D=掉落機率 E=備註
     });
 
     const rows = result.data.values || [];
-    const out = [];
+    const data = [];
 
-    for (const row of rows) {
-      const a = row[0] || ""; // A：怪物=>寶物
-      const c = row[2] || ""; // C：地圖
-      const d = row[3] || ""; // D：掉落機率
-      const e = row[4] || ""; // E：備註
+    // 跳過標題列
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
 
-      const { monster, item } = splitMonsterItem(a);
-
-      const hit =
-        norm(monster).includes(keyword) ||
-        norm(item).includes(keyword) ||
-        norm(a).includes(keyword);
-
-      if (hit) {
-        out.push({
-          monster,
-          item,
-          map: c,
-          rate: formatRate(d), // ✅ 純數字
-          note: e
+      const monsterName = row[0] || "";
+      if (monsterName.includes(monster)) {
+        data.push({
+          怪物: row[0] || "",
+          寶物: row[1] || "",
+          地圖: row[2] || "",
+          掉落機率: row[3] || "",
+          備註: row[4] || "",
         });
       }
     }
 
-    res.json(out);
+    if (data.length === 0) {
+      return res.json({ message: "查無資料" });
+    }
+
+    res.json(data);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "讀取 Google Sheet 失敗" });
   }
 });
 
-/* ===============================
-   Listen（雲端必備）
-   =============================== */
-
+// ====== 啟動伺服器 ======
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
