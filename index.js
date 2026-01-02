@@ -4,12 +4,10 @@ import { GoogleSpreadsheet } from 'google-spreadsheet'
 const app = express()
 const PORT = process.env.PORT || 3000
 
-// Google Sheet 設定
 const SHEET_ID = process.env.GOOGLE_SHEET_ID
 const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL
 const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
 
-// 連線 Sheet
 async function loadSheet() {
   const doc = new GoogleSpreadsheet(SHEET_ID)
   await doc.useServiceAccountAuth({
@@ -20,36 +18,52 @@ async function loadSheet() {
   return doc.sheetsByIndex[0]
 }
 
-// 首頁
 app.get('/', (req, res) => {
-  res.send('✅ cartest 怪物掉落查詢 API 已啟動')
+  res.send('✅ 怪物 / 掉落 查詢 API 已啟動')
 })
 
-// 查詢 API
-app.get('/api/drop', async (req, res) => {
-  const monster = req.query.monster?.trim()
-
-  if (!monster) {
-    return res.json({ success: false, message: '請提供 monster 參數' })
+/**
+ * 通用查詢 API
+ * ?q=梅杜莎
+ * ?q=長劍
+ */
+app.get('/api/search', async (req, res) => {
+  const q = req.query.q?.trim()
+  if (!q) {
+    return res.json({ success: false, message: '請提供 q 參數' })
   }
 
   try {
     const sheet = await loadSheet()
     const rows = await sheet.getRows()
 
-    const drops = rows
-      .filter(r => r['怪物'] && r['怪物'].startsWith(monster + '=>'))
-      .map(r => ({
-        item: r['怪物'].split('=>')[1],
-        map: r['地圖'] || '',
-        rate: r['掉落機率'] || '',
-        note: r['備註'] || '',
-      }))
+    const results = []
+
+    rows.forEach(r => {
+      if (!r['怪物']) return
+
+      const [monster, item] = r['怪物'].split('=>')
+
+      // 模糊比對（怪物 or 掉落物）
+      if (
+        monster.includes(q) ||
+        (item && item.includes(q))
+      ) {
+        results.push({
+          monster,
+          item,
+          map: r['地圖'] || '',
+          rate: r['掉落機率'] || '',
+          note: r['備註'] || '',
+        })
+      }
+    })
 
     res.json({
       success: true,
-      monster,
-      drops,
+      query: q,
+      count: results.length,
+      results,
     })
   } catch (err) {
     console.error(err)
