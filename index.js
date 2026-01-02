@@ -1,68 +1,65 @@
-import express from 'express'
-import { google } from 'googleapis'
+const express = require("express");
+const { google } = require("googleapis");
 
-const app = express()
-const PORT = process.env.PORT || 3000
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Google Auth
+/* ===== Google Sheet 認證 ===== */
 const auth = new google.auth.JWT(
   process.env.GOOGLE_CLIENT_EMAIL,
   null,
-  process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  ['https://www.googleapis.com/auth/spreadsheets.readonly']
-)
+  process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+);
 
-const sheets = google.sheets({ version: 'v4', auth })
+const sheets = google.sheets({ version: "v4", auth });
+const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
+const SHEET_NAME = "工作表1"; // 如果不是這個名字，告訴我我幫你改
 
-// 查詢 API
-app.get('/api/search', async (req, res) => {
-  const q = (req.query.q || '').trim()
-  if (!q) {
-    return res.json({ success: false, results: [] })
+/* ===== 首頁（測試用） ===== */
+app.get("/", (req, res) => {
+  res.send("怪物掉落 API 已啟動");
+});
+
+/* ===== 查詢 API ===== */
+app.get("/api/search", async (req, res) => {
+  const keyword = (req.query.q || "").trim();
+
+  if (!keyword) {
+    return res.json({ success: false, message: "請輸入查詢關鍵字" });
   }
 
   try {
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: 'A:E'
-    })
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A:D`,
+    });
 
-    const rows = response.data.values || []
-    const results = []
+    const rows = response.data.values || [];
 
-    for (let i = 1; i < rows.length; i++) {
-      const [monster, item, map, rate, note] = rows[i]
-
-      // ⭐ 核心重點：怪物 or 掉落物 都能查
-      if (
-        (monster && monster.includes(q)) ||
-        (item && item.includes(q))
-      ) {
-        results.push({
-          monster,
-          item,
-          map,
-          rate,
-          note
-        })
-      }
-    }
+    const results = rows
+      .filter(row => row[0] && row[0].includes(keyword)) // ★ 關鍵在這
+      .map(row => ({
+        monster: row[0],
+        item: row[1] || "",
+        map: row[2] || "",
+        rate: row[3] || ""
+      }));
 
     res.json({
       success: true,
-      keyword: q,
+      keyword,
+      count: results.length,
       results
-    })
+    });
 
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ success: false })
+    console.error(err);
+    res.status(500).json({ success: false, error: "Google Sheet 讀取失敗" });
   }
-})
+});
 
-// 前端頁面
-app.use(express.static('public'))
-
+/* ===== 啟動伺服器 ===== */
 app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`)
-})
+  console.log("Server running on port", PORT);
+});
