@@ -78,12 +78,9 @@
           <table>
             <thead>
               <tr>
-                <th>怪物</th>
-                <th>掉落物</th>
-                <th>地圖</th>
+                <th>怪物</th>            
                 <th>掉落率</th>
-                <th>備註</th>
-              </tr>
+               </tr>
             </thead>
             <tbody>
         `;
@@ -92,11 +89,8 @@
           html += `
             <tr>
               <td>${row.monster}</td>
-              <td>${row.item || "-"}</td>
-              <td>${row.map || "-"}</td>
               <td>${row.rate || "-"}</td>
-              <td>${row.note || "-"}</td>
-            </tr>
+             </tr>
           `;
         }
 
