@@ -1,76 +1,68 @@
 import express from 'express'
-import { GoogleSpreadsheet } from 'google-spreadsheet'
+import { google } from 'googleapis'
 
 const app = express()
 const PORT = process.env.PORT || 3000
 
-const SHEET_ID = process.env.GOOGLE_SHEET_ID
-const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL
-const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
+// Google Auth
+const auth = new google.auth.JWT(
+  process.env.GOOGLE_CLIENT_EMAIL,
+  null,
+  process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  ['https://www.googleapis.com/auth/spreadsheets.readonly']
+)
 
-async function loadSheet() {
-  const doc = new GoogleSpreadsheet(SHEET_ID)
-  await doc.useServiceAccountAuth({
-    client_email: CLIENT_EMAIL,
-    private_key: PRIVATE_KEY,
-  })
-  await doc.loadInfo()
-  return doc.sheetsByIndex[0]
-}
+const sheets = google.sheets({ version: 'v4', auth })
 
-app.get('/', (req, res) => {
-  res.send('✅ 怪物 / 掉落 查詢 API 已啟動')
-})
-
-/**
- * 通用查詢 API
- * ?q=梅杜莎
- * ?q=長劍
- */
+// 查詢 API
 app.get('/api/search', async (req, res) => {
-  const q = req.query.q?.trim()
+  const q = (req.query.q || '').trim()
   if (!q) {
-    return res.json({ success: false, message: '請提供 q 參數' })
+    return res.json({ success: false, results: [] })
   }
 
   try {
-    const sheet = await loadSheet()
-    const rows = await sheet.getRows()
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: 'A:E'
+    })
 
+    const rows = response.data.values || []
     const results = []
 
-    rows.forEach(r => {
-      if (!r['怪物']) return
+    for (let i = 1; i < rows.length; i++) {
+      const [monster, item, map, rate, note] = rows[i]
 
-      const [monster, item] = r['怪物'].split('=>')
-
-      // 模糊比對（怪物 or 掉落物）
+      // ⭐ 核心重點：怪物 or 掉落物 都能查
       if (
-        monster.includes(q) ||
+        (monster && monster.includes(q)) ||
         (item && item.includes(q))
       ) {
         results.push({
           monster,
           item,
-          map: r['地圖'] || '',
-          rate: r['掉落機率'] || '',
-          note: r['備註'] || '',
+          map,
+          rate,
+          note
         })
       }
-    })
+    }
 
     res.json({
       success: true,
-      query: q,
-      count: results.length,
-      results,
+      keyword: q,
+      results
     })
+
   } catch (err) {
     console.error(err)
-    res.json({ success: false, error: err.message })
+    res.status(500).json({ success: false })
   }
 })
 
+// 前端頁面
+app.use(express.static('public'))
+
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`)
+  console.log(`Server running on ${PORT}`)
 })
