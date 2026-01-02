@@ -1,179 +1,67 @@
-<!doctype html>
-<html lang="zh-Hant">
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>掉落查詢</title>
-
+  <meta charset="UTF-8">
+  <title>怪物掉落查詢</title>
   <style>
     body {
-      font-family: Arial, "Microsoft JhengHei", sans-serif;
-      margin: 24px;
+      font-family: Arial;
+      background: #111;
+      color: #eee;
+      padding: 30px;
     }
-    .wrap {
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-    h1 {
-      font-size: 24px;
-      margin-bottom: 16px;
-    }
-    .row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    input {
-      flex: 1;
-      min-width: 240px;
-      padding: 10px;
+    input, button {
+      padding: 8px;
       font-size: 16px;
     }
     button {
-      padding: 10px 14px;
-      font-size: 16px;
       cursor: pointer;
     }
-    .hint {
-      color: #666;
-      margin: 12px 0;
-      font-size: 14px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 14px;
-    }
-    th, td {
-      border-bottom: 1px solid #ddd;
-      padding: 12px 10px;
-      text-align: left;
-    }
-    th {
-      background: #f3f3f3;
-      font-weight: bold;
-    }
-    .msg {
-      margin-top: 12px;
-      color: #444;
-    }
-    .muted {
-      color: #777;
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #222;
+      border-radius: 6px;
     }
   </style>
 </head>
-
 <body>
-  <div class="wrap">
-    <h1>掉落查詢</h1>
 
-    <div class="row">
-      <input id="q" placeholder="輸入怪物或寶物關鍵字" />
-      <button id="btn">查詢</button>
-      <button id="clear">清除</button>
-    </div>
+  <h1>🧟‍♂️ 怪物掉落查詢</h1>
 
-    <div class="hint">
-      例：魔族、死亡騎士、長劍
-    </div>
+  <input id="monster" placeholder="輸入怪物名稱">
+  <button onclick="search()">查詢</button>
 
-    <div id="msg" class="msg muted">請輸入關鍵字開始查詢。</div>
-
-    <table id="tbl" style="display:none;">
-      <thead>
-        <tr>
-          <th style="width:55%;">怪物 ⇒ 寶物</th>
-          <th style="width:20%;">機率</th>
-          <th>備註</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-  </div>
+  <div id="result" class="result"></div>
 
   <script>
-    const qEl = document.getElementById("q");
-    const btn = document.getElementById("btn");
-    const clearBtn = document.getElementById("clear");
-    const msg = document.getElementById("msg");
-    const tbl = document.getElementById("tbl");
-    const tbody = document.getElementById("tbody");
-
-    function esc(s) {
-      return String(s ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
-    }
-
-    function formatRate(rate) {
-      if (rate === null || rate === undefined || rate === "") return "";
-      const n = Number(rate);
-      if (isNaN(n)) return "";
-      return n + "%"; // ✅ 關鍵就在這一行
-    }
-
     async function search() {
-      const keyword = qEl.value.trim();
-      if (!keyword) {
-        tbl.style.display = "none";
-        msg.textContent = "請輸入關鍵字開始查詢。";
-        msg.className = "msg muted";
-        return;
-      }
+      const name = document.getElementById('monster').value;
+      const result = document.getElementById('result');
 
-      msg.textContent = "查詢中...";
-      msg.className = "msg";
+      result.innerHTML = '查詢中...';
 
       try {
-        const resp = await fetch(`/search?keyword=${encodeURIComponent(keyword)}`);
-        const data = await resp.json();
+        const res = await fetch(`/api/monster?name=${encodeURIComponent(name)}`);
+        const data = await res.json();
 
-        tbody.innerHTML = "";
-
-        if (!Array.isArray(data) || data.length === 0) {
-          tbl.style.display = "none";
-          msg.textContent = "查無結果";
-          msg.className = "msg muted";
+        if (!data || data.length === 0) {
+          result.innerHTML = '❌ 查無資料';
           return;
         }
 
-        for (const row of data) {
-          const left = `${row.monster || ""} ⇒ ${row.item || ""}`;
-          const rate = formatRate(row.rate);
-          const note = row.note || "";
+        let html = `<h3>掉落物：</h3><ul>`;
+        data.forEach(item => {
+          html += `<li>${item}</li>`;
+        });
+        html += `</ul>`;
 
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${esc(left)}</td>
-            <td>${esc(rate)}</td>
-            <td>${esc(note)}</td>
-          `;
-          tbody.appendChild(tr);
-        }
-
-        tbl.style.display = "";
-        msg.textContent = `找到 ${data.length} 筆結果`;
-        msg.className = "msg";
+        result.innerHTML = html;
       } catch (e) {
-        tbl.style.display = "none";
-        msg.textContent = "查詢失敗，請確認伺服器是否啟動";
-        msg.className = "msg";
+        result.innerHTML = '⚠️ 查詢失敗';
       }
     }
-
-    btn.addEventListener("click", search);
-    qEl.addEventListener("keydown", e => {
-      if (e.key === "Enter") search();
-    });
-    clearBtn.addEventListener("click", () => {
-      qEl.value = "";
-      tbody.innerHTML = "";
-      tbl.style.display = "none";
-      msg.textContent = "請輸入關鍵字開始查詢。";
-      msg.className = "msg muted";
-      qEl.focus();
-    });
   </script>
+
 </body>
 </html>
